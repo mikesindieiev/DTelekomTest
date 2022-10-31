@@ -48,6 +48,8 @@ $ ./getweather
 city="Honolulu", description="few clouds", temp=70.2, humidity=75
 ```
 
+Link to image at [DockerHub](https://hub.docker.com/repository/docker/mikesindieiev/getweather/general)
+
 ### 1.3 Dockerize and run the program
 
 Create Dockerfile for building image for the getweather program you’ve written.
