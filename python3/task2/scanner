@@ -1,0 +1,99 @@
+import csv
+import nmap
+import os
+import argparse
+
+parser = argparse.ArgumentParser(description='Script to scan network. '
+                                             'Usage:'
+                                             './scanner.py -net 192.168.56.8/29')
+parser.add_argument('-net',
+                    type=str,
+                    help='Network or single host to scan',
+                    required=True)
+
+parser.add_argument('-ports',
+                    type=str,
+                    help='Port or portrange to scan. Default range: 22-80',
+                    required=False,
+                    default='22-80')
+
+args = parser.parse_args()
+
+scan_addr = args.net
+scan_ports = args.ports
+
+# ToDo move setting into separate file
+scan_timeout = 5
+latest_scan_file = 'result_latest.csv'
+prev_scan_file = 'result_prev.csv'
+
+# Run scan against the target
+nm = nmap.PortScanner()
+if scan_ports:
+    scan_result = nm.scan(hosts=scan_addr, ports=scan_ports)
+else:
+    scan_result = nm.scan(scan_addr)
+
+csv_result = nm.csv()
+
+# Mark existing scan as old, load previous scan result, and write current scan result to file.
+if os.path.exists(latest_scan_file):
+    os.rename(latest_scan_file, prev_scan_file)
+    # Read previous scan result from disk
+    with open(prev_scan_file) as f:
+        reader = csv.DictReader(f, delimiter=';')
+        prev_scan_result = []
+        for cur_dict in reader:
+            prev_scan_result.append(cur_dict)
+else:
+    print('Previous scan result not found. This is the first scan.')
+    prev_scan_result = []
+
+# Write current scan result to disk
+with open(latest_scan_file, 'w') as f:
+    f.write(csv_result)
+
+# Read the latest file from disk. # Todo rewrite not to read/write it to disk, but read from memory
+with open(latest_scan_file, 'r') as f:
+    reader = csv.DictReader(f, delimiter=';')
+    latest_scan_result = []
+    for cur_dict in reader:
+        latest_scan_result.append(cur_dict)
+
+# Here find what ports were opened
+opened_ports = []
+for cur_host in latest_scan_result:
+    if cur_host not in prev_scan_result:
+        opened_ports.append(cur_host)
+
+# Here find what ports were closed
+closed_ports = []
+for cur_host in prev_scan_result:
+    if cur_host not in latest_scan_result:
+        closed_ports.append(cur_host)
+
+# Get list of active hosts
+active_hosts = []
+for one_host in latest_scan_result:
+    cur_hostname = one_host.get("host")
+    if cur_hostname not in active_hosts:
+        active_hosts.append(cur_hostname)
+
+# Print results depending to latest scan
+for one_host in active_hosts:
+    print("Host: {0}".format(one_host))
+    print("Current state: ")
+    for cur_host in latest_scan_result:
+        cur_active_hostname = cur_host.get("host")
+        if one_host == cur_active_hostname:
+            print("{0}/{1} {2}".format(cur_host.get("port"), cur_host.get("protocol"), cur_host.get("state")))
+    print("Closed ports since last scan:")
+    for cur_host in closed_ports:
+        cur_active_hostname = cur_host.get("host")
+        if one_host == cur_active_hostname:
+            print("{0}/{1} was {2}".format(cur_host.get("port"), cur_host.get("protocol"), cur_host.get("state")))
+    print("Opened ports since last scan:")
+    for cur_host in opened_ports:
+        cur_active_hostname = cur_host.get("host")
+        if one_host == cur_active_hostname:
+            print("{0}/{1} {2}\n ".format(cur_host.get("port"), cur_host.get("protocol"), cur_host.get("state")))
